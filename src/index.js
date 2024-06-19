@@ -1,9 +1,38 @@
 import "dotenv/config.js";
 import { WebSocketServer } from "ws";
 import { Server } from "./services/serverService.js";
+import * as mongoose from "mongoose";
+import settingsModel from "./models/settingsModel.js";
+
+let settings;
+
+try {
+  await mongoose.connect(process.env.mongoURL, {
+    serverApi: {
+      version: "1",
+      strict: true,
+      deprecationErrors: true,
+    },
+  });
+  console.log("[INFO] Mongoose connected successfully");
+  settings = await settingsModel.findOne();
+  if (!settings) {
+    console.log("[INFO] No settings found, creating new one...");
+    const newSettings = new settingsModel({
+      is_urgent_timer_active: false,
+      urgent_action_type: 0,
+      urgent_action_timer: 60,
+      timer_interval: 60,
+      last_capture_url: "",
+    });
+    settings = await newSettings.save();
+  }
+} catch (e) {
+  console.log("[ERROR] Mongoose connection error : " + e);
+}
 
 const wss = new WebSocketServer({ port: 8080 });
-const server = new Server();
+const server = new Server(settings);
 
 wss.on("connection", (ws) => {
   ws.on("message", (message) => {

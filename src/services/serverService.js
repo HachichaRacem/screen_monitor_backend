@@ -8,6 +8,10 @@ const supabase = createClient(process.env.supabaseURL, process.env.supabaseKEY);
 
 class Server {
   _database = new Database();
+  _initSettings;
+  constructor(initSettings) {
+    this._initSettings = initSettings;
+  }
   _getClientBySocket(socket) {
     for (const client of clients) {
       if (client.socket === socket) {
@@ -81,7 +85,12 @@ class Server {
     const client = new Client(socket, clientID);
     clients.add(client);
     this.sendConnectedClients();
-    this._database.fetchSettings(socket);
+    socket.send(
+      JSON.stringify({
+        type: "SETTINGS",
+        settings: this._initSettings,
+      })
+    );
     console.log(
       "[INFO] User (ID:%d) has connected to the server. Connected clients : %d",
       clientID,
@@ -114,7 +123,7 @@ class Server {
       .createSignedUrl("ss.png", 31536000)
       .then((res) => {
         const captureURL = res.data.signedUrl;
-        this._database.updateLastCaptureURL(socket, captureURL);
+        this._database.updateLastCaptureURL(captureURL);
       })
       .catch((err) => {
         this._updateEveryone("LAST_CAPTURE_URL", err, null, true);
@@ -123,7 +132,7 @@ class Server {
   }
   async handleUpdateUploadTimer(payload, socket) {
     if (payload["uploadTime"]) {
-      this._database.updateUploadTimer(payload["uploadTime"], socket);
+      this._database.updateUploadTimer(payload["uploadTime"]);
     } else {
       socket.send(
         JSON.stringify({
@@ -135,10 +144,7 @@ class Server {
   }
   async handleUpdateUrgentTimer(payload, socket) {
     if (payload["urgentTime"]) {
-      await this._database.updateUrgentActionTimer(
-        payload["urgentTime"],
-        socket
-      );
+      await this._database.updateUrgentActionTimer(payload["urgentTime"]);
       this._sendUpdateToMobile("URGENT_ACTION_TIMER", payload["urgentTime"]);
     } else {
       socket.send(
